@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Railway Ticket Booking System — Visual DFA (Presentable)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  :root{
+    --bg:#f6f7fb; --card:#ffffff; --muted:#667085; --accent:#6d28d9; --accent-2:#7c3aed;
+    --good:#10b981; --bad:#ef4444; --edge:#9aa6b2;
+    --node-stroke:#dbeafe; --trail:#c7b3ff;
+    --font:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  }
+  html,body{height:100%; margin:0; font-family:var(--font); background:linear-gradient(180deg,#ffffff 0%, #f6f7fb 100%); color:#0f172a}
+  .app {
+    padding:20px 28px;
+    max-width:1360px;
+    margin:0 auto;
+  }
+  header {
+    display:flex; align-items:center; justify-content:space-between; gap:20px;
+    margin-bottom:18px;
+  }
+  header .title {
+    display:flex; align-items:center; gap:14px;
+  }
+  .logo {
+    width:44px; height:44px; border-radius:10px; background:linear-gradient(135deg,var(--accent),var(--accent-2));
+    display:flex; align-items:center; justify-content:center; color:white; font-weight:700;
+    box-shadow: 0 6px 18px rgba(99,102,241,0.12);
+  }
+  h1 { font-size:20px; margin:0; color:#0b1220; }
+  .subtitle { color:var(--muted); font-size:13px; margin-top:3px }
+
+  .layout { display:grid; grid-template-columns: 1fr 420px; gap:20px; }
+  .card { background:var(--card); border-radius:12px; padding:16px; box-shadow: 0 6px 18px rgba(15,23,42,0.06); }
+
+  /* diagram area */
+  .diagram-wrap { padding:12px; display:flex; flex-direction:column; gap:12px; }
+  .diagram-top { display:flex; align-items:center; justify-content:space-between; gap:12px }
+  .diagram-title { font-weight:700; color:#0f172a }
+  .diagram-sub { color:var(--muted); font-size:13px }
+
+  .svg-wrap { background:linear-gradient(180deg,#fff,#fbfbff); border-radius:10px; padding:14px; border:1px solid #eef2ff; overflow:auto }
+  svg { width:100%; height:480px; display:block }
+
+  /* nodes/edges */
+  .node rect { rx:10; ry:10; fill:white; stroke:var(--node-stroke); stroke-width:1.5; transition:all .24s ease; }
+  .node text { font-size:13px; pointer-events:none; fill:#08132a; }
+  .node.trail rect { fill:var(--trail); stroke:#d6c8ff; }
+  .node.active rect { fill:var(--accent); stroke:#4c1d95; color:#fff }
+  .node.accept rect { fill:var(--good); stroke:#0f766e }
+  .node.err rect { fill:var(--bad); stroke:#9b2c2c }
+
+  .edge { fill:none; stroke:var(--edge); stroke-width:2; transition:all .22s ease; marker-end:url(#arrow); }
+  .edge.trail { stroke:var(--accent); stroke-width:3 }
+  .edge.err { stroke:var(--bad); stroke-width:3; stroke-dasharray:8 6; marker-end:url(#arrow-red) }
+
+  .label { font-size:12px; fill:#334155; }
+
+  /* controls */
+  .controls { display:flex; flex-direction:column; gap:10px }
+  .tokens-row, .actions-row { display:flex; flex-wrap:wrap; gap:8px }
+  .tok { padding:8px 12px; border-radius:8px; border:1px solid #e6e9f2; background:#fff; cursor:pointer; font-weight:600 }
+  .tok.small { padding:6px 10px; font-weight:600; min-width:88px }
+
+  .tok.disabled { opacity:.45; cursor:not-allowed }
+
+  .actions-row .btn { background:var(--accent); color:white; border:none; padding:10px 14px; border-radius:9px; cursor:pointer; font-weight:700 }
+  .actions-row .btn.ghost { background:white; color:var(--accent); border:1px solid #e6e9f2 }
+  input.seq { flex:1; padding:10px; border-radius:8px; border:1px solid #e6e9f2 }
+
+  /* right panel */
+  .right-panel .panel-title { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+  .status-strip { background:linear-gradient(90deg,var(--accent),var(--accent-2)); color:white; padding:10px 14px; border-radius:10px; font-weight:700; text-align:center }
+  .steps { margin-top:12px; display:flex; gap:8px; flex-direction:column }
+  .step-card { border-radius:8px; padding:10px; border:1px solid #eef2ff; background:white; }
+  .trace { margin-top:12px; font-weight:700; color:#0b1220 }
+
+  /* small screens */
+  @media (max-width:1100px){
+    .layout { grid-template-columns: 1fr; }
+    svg { height:640px }
+  }
+</style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="title">
+        <div class="logo">TOC</div>
+        <div>
+          <h1>Railway Ticket Booking System - TOC Simulator</h1>
+          <div class="subtitle">DFA demo — visual trace & step-by-step playback</div>
+        </div>
+      </div>
+      <!-- <div style="display:flex;gap:8px;align-items:center">
+        <div style="color:var(--muted); font-weight:600">Mode</div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn ghost" style="padding:8px 12px; border-radius:10px">DFA Mode</button>
+          <button class="btn" style="padding:8px 12px; border-radius:10px">PDA Mode</button>
+        </div>
+      </div> -->
+    </header>
+
+    <div class="layout">
+      <!-- Left: Diagram -->
+      <div class="card">
+        <div class="diagram-wrap">
+          <div class="diagram-top">
+            <div>
+              <div class="diagram-title">State Diagram</div>
+              <div class="diagram-sub">Non-error flow + self-loops. Trail colors show visited path.</div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end">
+              <div style="font-weight:700; color:var(--muted)">Step <span id="step-num">0</span> / <span id="step-total">0</span></div>
+              <div style="font-size:13px; color:var(--muted); margin-top:6px" id="current-seq">Sequence: —</div>
+            </div>
+          </div>
+
+          <div class="svg-wrap" id="svg-wrap">
+            <svg id="dfa-svg" viewBox="0 0 1200 520" preserveAspectRatio="xMinYMin meet">
+              <defs>
+                <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#9aa6b2"></path>
+                </marker>
+                <marker id="arrow-red" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#ef4444"></path>
+                </marker>
+              </defs>
+
+              <!-- nodes defined with positions; JS will compute connectors and labels -->
+              <g id="node-start" class="node" transform="translate(36,36)"><rect width="140" height="44"></rect><text x="70" y="28" text-anchor="middle">start</text></g>
+              <g id="node-logged_in" class="node" transform="translate(216,36)"><rect width="140" height="44"></rect><text x="70" y="28" text-anchor="middle">logged_in</text></g>
+              <g id="node-journey_sel" class="node" transform="translate(396,36)"><rect width="160" height="44"></rect><text x="80" y="28" text-anchor="middle">journey_sel</text></g>
+              <g id="node-availability" class="node" transform="translate(616,36)"><rect width="160" height="44"></rect><text x="80" y="28" text-anchor="middle">availability</text></g>
+
+              <g id="node-class_sel" class="node" transform="translate(116,156)"><rect width="160" height="44"></rect><text x="80" y="28" text-anchor="middle">class_sel</text></g>
+              <g id="node-passenger_info" class="node" transform="translate(336,156)"><rect width="180" height="44"></rect><text x="90" y="28" text-anchor="middle">passenger_info</text></g>
+              <g id="node-payment_try" class="node" transform="translate(616,156)"><rect width="160" height="44"></rect><text x="80" y="28" text-anchor="middle">payment_try</text></g>
+              <g id="node-ticket_issued" class="node" transform="translate(336,286)"><rect width="180" height="44"></rect><text x="90" y="28" text-anchor="middle">ticket_issued</text></g>
+
+              <g id="node-error" class="node" transform="translate(980,36)"><rect width="160" height="44"></rect><text x="80" y="28" text-anchor="middle">error</text></g>
+              <g id="node-no_availability" class="node" transform="translate(980,156)"><rect width="160" height="44"></rect><text x="80" y="28" text-anchor="middle">no_availability</text></g>
+
+              <!-- static non-error edges; JS draws actual curves -->
+              <path id="edge-start-logged_in-auth" class="edge" data-from="start" data-to="logged_in" data-label="auth"></path>
+              <path id="edge-logged_in-journey_sel-select" class="edge" data-from="logged_in" data-to="journey_sel" data-label="select"></path>
+              <path id="edge-journey_sel-availability-avail_ok" class="edge" data-from="journey_sel" data-to="availability" data-label="avail_ok"></path>
+              <path id="edge-availability-class_sel-choose" class="edge" data-from="availability" data-to="class_sel" data-label="choose"></path>
+              <path id="edge-class_sel-passenger_info-details" class="edge" data-from="class_sel" data-to="passenger_info" data-label="details"></path>
+              <path id="edge-passenger_info-ticket_issued-pay_ok" class="edge" data-from="passenger_info" data-to="ticket_issued" data-label="pay_ok"></path>
+              <path id="edge-passenger_info-payment_try-pay_fail" class="edge" data-from="passenger_info" data-to="payment_try" data-label="pay_fail"></path>
+              <path id="edge-payment_try-ticket_issued-pay_ok" class="edge" data-from="payment_try" data-to="ticket_issued" data-label="pay_ok"></path>
+
+              <!-- search self-loops -->
+              <path id="edge-start-search" class="edge" data-from="start" data-to="start" data-label="search"></path>
+              <path id="edge-logged_in-search" class="edge" data-from="logged_in" data-to="logged_in" data-label="search"></path>
+              <path id="edge-journey_sel-search" class="edge" data-from="journey_sel" data-to="journey_sel" data-label="search"></path>
+              <path id="edge-availability-search" class="edge" data-from="availability" data-to="availability" data-label="search"></path>
+              <path id="edge-class_sel-search" class="edge" data-from="class_sel" data-to="class_sel" data-label="search"></path>
+              <path id="edge-passenger_info-search" class="edge" data-from="passenger_info" data-to="passenger_info" data-label="search"></path>
+
+              <g id="edge-labels"></g>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: controls / flow / trace -->
+      <div class="card right-panel">
+        <div class="panel-title">
+          <div style="flex:1">
+            <div style="font-weight:700">Real Booking Flow</div>
+            <div style="color:var(--muted); font-size:13px">Click tokens to step or run a sequence.</div>
+          </div>
+        </div>
+
+        <div class="controls">
+          <div class="tokens-row" id="tokens-top">
+            <!-- token buttons are rendered by server -->
+            {% for token in alphabet %}
+              <button class="tok" data-sym="{{ token }}">{{ token }}</button>
+            {% endfor %}
+          </div>
+
+          <div class="actions-row" style="margin-top:8px">
+            <input id="seq" class="seq" placeholder="e.g. auth select avail_ok choose details pay_ok" />
+            <button class="btn" id="btn-run">Run</button>
+            <button class="btn ghost" id="btn-step">Step</button>
+            <button class="btn ghost" id="btn-random">Load random</button>
+            <button class="btn ghost" id="btn-play-random">Play</button>
+            <button class="btn ghost" id="btn-reset">Reset</button>
+          </div>
+
+        </div>
+
+        <div style="margin-top:12px">
+          <div class="step-card">
+            <div style="font-weight:700">Current State: <span id="cur-state">start</span></div>
+            <div style="color:var(--muted); margin-top:6px" id="accepted-badge"></div>
+            <div id="trace" class="trace">Trace: start</div>
+          </div>
+        </div>
+
+        <div style="margin-top:12px">
+          <div style="font-weight:700; margin-bottom:8px">Legend</div>
+          <div style="color:var(--muted); font-size:13px">
+            auth · select · avail_ok · choose · details · pay_ok / pay_fail · search · cancel/timeout
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+<script>
+/* JS: routing edges nicely, maintaining trail colors, step/sequence controls */
+document.addEventListener('DOMContentLoaded', () => {
+  const svg = document.getElementById('dfa-svg');
+  const staticEdges = Array.from(svg.querySelectorAll('path.edge'));
+  const labelGroup = document.getElementById('edge-labels');
+  const seqInputTop = document.querySelectorAll('input.seq')[0] || document.getElementById('seq');
+  const tokens = Array.from(document.querySelectorAll('.tok'));
+  const btnRun = document.getElementById('btn-run');
+  const btnStep = document.getElementById('btn-step');
+  const btnRandom = document.getElementById('btn-random');
+  const btnPlayRandom = document.getElementById('btn-play-random');
+  const btnReset = document.getElementById('btn-reset');
+
+  const curStateEl = document.getElementById('cur-state');
+  const traceEl = document.getElementById('trace');
+  const acceptedBadge = document.getElementById('accepted-badge');
+  const stepNum = document.getElementById('step-num');
+  const stepTot = document.getElementById('step-total');
+  const curSeq = document.getElementById('current-seq');
+
+  let stepPointer = 0;         // pointer into sequence for Step button
+  let lastTrace = ['start'];  // last known trace (server)
+  let trailSet = new Set();   // visited nodes so far
+
+  // --- geometry helpers ---
+  function nodeInfo(id) {
+    const g = document.getElementById('node-' + id);
+    if (!g) return null;
+    const tr = g.getAttribute('transform');
+    const m = /translate\(([-\d\.]+),\s*([-\d\.]+)\)/.exec(tr);
+    const gx = parseFloat(m[1]), gy = parseFloat(m[2]);
+    const rect = g.querySelector('rect');
+    const w = parseFloat(rect.getAttribute('width')), h = parseFloat(rect.getAttribute('height'));
+    return {gx, gy, w, h, cx: gx + w/2, cy: gy + h/2};
+  }
+
+  function borderPoint(fromInfo, toInfo) {
+    const dx = toInfo.cx - fromInfo.cx;
+    const dy = toInfo.cy - fromInfo.cy;
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) {
+      return {x: fromInfo.cx, y: fromInfo.cy - fromInfo.h/2 - 10};
+    }
+    const rx = fromInfo.w/2, ry = fromInfo.h/2;
+    const absDx = Math.abs(dx), absDy = Math.abs(dy);
+    const tx = absDx === 0 ? Infinity : rx/absDx;
+    const ty = absDy === 0 ? Infinity : ry/absDy;
+    const t = Math.min(tx, ty);
+    const scale = Math.max(0.96 * t, 0.22);
+    return {x: fromInfo.cx + dx * scale, y: fromInfo.cy + dy * scale};
+  }
+
+  function computeCurve(p1, p2){
+    const mx = (p1.x + p2.x)/2, my = (p1.y + p2.y)/2;
+    const vx = p2.x - p1.x, vy = p2.y - p1.y;
+    const len = Math.sqrt(vx*vx + vy*vy) || 1;
+    const nx = -vy/len, ny = vx/len;
+    const dist = Math.min(220, Math.sqrt(vx*vx + vy*vy));
+    const curv = Math.max(28, dist * 0.28);
+    return {c1:{x:mx+nx*curv, y:my+ny*curv}, c2:{x:mx+nx*curv, y:my+ny*curv}};
+  }
+
+  function placeLabel(pathEl, p1, p2, text) {
+    // remove old
+    if (pathEl.__label) pathEl.__label.remove();
+    const mx = (p1.x + p2.x)/2, my = (p1.y + p2.y)/2;
+    const vx = p2.x - p1.x, vy = p2.y - p1.y, len = Math.sqrt(vx*vx + vy*vy) || 1;
+    const ox = -vy/len * 18, oy = vx/len * 18;
+    const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+    t.setAttribute('x', mx + ox); t.setAttribute('y', my + oy);
+    t.setAttribute('class','label'); t.setAttribute('text-anchor','middle'); t.textContent = text;
+    labelGroup.appendChild(t);
+    pathEl.__label = t;
+  }
+
+  function buildEdge(edge){
+    const from = edge.dataset.from, to = edge.dataset.to, label = edge.dataset.label || '';
+    const fromInfo = nodeInfo(from), toInfo = nodeInfo(to);
+    if (!fromInfo || !toInfo) return;
+    const start = borderPoint(fromInfo, toInfo);
+    const end = borderPoint(toInfo, fromInfo);
+    if (from === to) {
+      // self-loop above node
+      const top = {x: fromInfo.cx, y: fromInfo.cy - fromInfo.h/2 - 26};
+      const c1 = {x: fromInfo.cx - 44, y: top.y};
+      const c2 = {x: fromInfo.cx + 44, y: top.y};
+      const d = `M ${start.x} ${start.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${end.x} ${end.y}`;
+      edge.setAttribute('d', d);
+      placeLabel(edge, start, top, label);
+      return;
+    }
+    const ctrl = computeCurve(start, end);
+    const d = `M ${start.x} ${start.y} C ${ctrl.c1.x} ${ctrl.c1.y}, ${ctrl.c2.x} ${ctrl.c2.y}, ${end.x} ${end.y}`;
+    edge.setAttribute('d', d);
+    placeLabel(edge, start, end, label);
+  }
+
+  function rebuildAll(){
+    while (labelGroup.firstChild) labelGroup.removeChild(labelGroup.firstChild);
+    staticEdges.forEach(buildEdge);
+    // update dynamic edges too
+    Array.from(svg.querySelectorAll('path.edge.err, path.edge.dynamic')).forEach(p=>{
+      const from = p.dataset.from, to = p.dataset.to;
+      if (!from || !to) return;
+      const f = nodeInfo(from), t = nodeInfo(to);
+      if (!f || !t) return;
+      const s = borderPoint(f,t), e = borderPoint(t,f);
+      const ctrl = computeCurve(s,e);
+      const d = `M ${s.x} ${s.y} C ${ctrl.c1.x} ${ctrl.c1.y}, ${ctrl.c2.x} ${ctrl.c2.y}, ${e.x} ${e.y}`;
+      p.setAttribute('d', d);
+      // move label if present
+      if (p.__label) { p.__label.setAttribute('x', (s.x+e.x)/2); p.__label.setAttribute('y', (s.y+e.y)/2 - 10); }
+    });
+  }
+
+  // initial draw
+  rebuildAll();
+  window.addEventListener('resize', () => setTimeout(rebuildAll, 80));
+
+  // --- server interactions & UI updates ---
+  async function apiStep(sym){
+    const r = await fetch('/api/step', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({symbol: sym})});
+    return r.json();
+  }
+  async function apiRun(seq){
+    const r = await fetch('/api/run', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({sequence: seq})});
+    return r.json();
+  }
+  async function apiReset(){
+    const r = await fetch('/api/reset', {method:'POST'});
+    return r.json();
+  }
+  async function apiRandom(){
+    const r = await fetch('/api/random'); return r.json();
+  }
+
+  function setTrail(traceArr){
+    // color nodes/edges visited in order; older visits get lower opacity
+    // mark nodes
+    const nodes = Array.from(svg.querySelectorAll('.node'));
+    nodes.forEach(n => n.classList.remove('trail'));
+    traceArr.forEach((s,i) => {
+      const g = document.getElementById('node-' + s);
+      if (g) g.classList.add('trail');
+    });
+    // mark edges that lie between consecutive nodes in trace
+    // clear any previous trail styles
+    svg.querySelectorAll('path.edge').forEach(e => e.classList.remove('trail'));
+    for (let i=0;i<traceArr.length-1;i++){
+      const a = traceArr[i], b = traceArr[i+1];
+      // find a static edge matching a->b
+      const cand = staticEdges.find(e => e.dataset.from === a && e.dataset.to === b);
+      if (cand) cand.classList.add('trail');
+      else {
+        // dynamic or error edge: create or mark dynamic edge
+        const id = `dyn-${a}-${b}`;
+        if (!document.getElementById(id)){
+          const p = document.createElementNS('http://www.w3.org/2000/svg','path');
+          p.setAttribute('id', id); p.setAttribute('class','edge err dynamic');
+          p.dataset.from = a; p.dataset.to = b;
+          svg.appendChild(p);
+          const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+          t.setAttribute('class','label'); t.textContent = '(err)';
+          t.setAttribute('id', id + '-lab');
+          labelGroup.appendChild(t);
+          rebuildAll();
+        } else {
+          document.getElementById(id).classList.add('trail');
+        }
+      }
+    }
+  }
+
+  function updateStatus(json){
+    // update trace display and current state
+    if (json.trace) {
+      lastTrace = json.trace;
+      traceEl.textContent = 'Trace: ' + json.trace.join(' → ');
+      setTrail(json.trace);
+      stepNum.textContent = Math.max(0, json.trace.length - 1);
+      stepTot.textContent = document.getElementById('seq').value.trim() ? document.getElementById('seq').value.trim().split(/\s+/).filter(Boolean).length : stepNum.textContent;
+    }
+    curStateEl.textContent = json.current || 'start';
+    if (json.accepted) {
+      acceptedBadge.textContent = 'Ticket issued (ACCEPTED)'; acceptedBadge.style.color='#fff'; acceptedBadge.style.background = 'linear-gradient(90deg,var(--good),#059669)'; acceptedBadge.style.padding='6px 8px'; acceptedBadge.style.borderRadius='6px';
+    } else acceptedBadge.textContent = '';
+    // ensure active node is visible
+    setActiveNode(json.current);
+    rebuildAll();
+  }
+
+  function setActiveNode(name){
+    svg.querySelectorAll('.node').forEach(n => n.classList.remove('active','accept','err'));
+    const n = document.getElementById('node-' + name);
+    if (!n) return;
+    if (name === 'ticket_issued') n.classList.add('accept');
+    else if (name === 'error' || name === 'no_availability') n.classList.add('err');
+    else n.classList.add('active');
+  }
+
+  // step/sequence handlers
+  tokens.forEach(btn => btn.addEventListener('click', async () => {
+    if (btn.classList.contains('disabled')) return;
+    const sym = btn.dataset.sym;
+    const j = await apiStep(sym);
+    updateStatus(j);
+  }));
+
+  btnRun.addEventListener('click', async () => {
+    const seq = document.getElementById('seq').value.trim();
+    if (!seq) return alert('Enter a sequence');
+    document.getElementById('current-seq').textContent = 'Sequence: ' + seq;
+    const j = await apiRun(seq);
+    updateStatus(j);
+  });
+
+  btnStep.addEventListener('click', async () => {
+    const seqVal = document.getElementById('seq').value.trim();
+    if (!seqVal) return alert('Put a sequence into the input box first');
+    const arr = seqVal.split(/\s+/).filter(Boolean);
+    if (stepPointer >= arr.length) return alert('No more tokens to step');
+    const sym = arr[stepPointer];
+    const j = await apiStep(sym);
+    stepPointer++;
+    updateStatus(j);
+  });
+
+  btnRandom.addEventListener('click', async () => {
+    const j = await apiRandom();
+    document.getElementById('seq').value = j.seq;
+    document.getElementById('current-seq').textContent = 'Sequence: ' + j.seq + ' (' + j.expected + ')';
+    stepPointer = 0;
+  });
+
+  btnPlayRandom.addEventListener('click', async () => {
+    const j = await apiRandom();
+    document.getElementById('seq').value = j.seq;
+    document.getElementById('current-seq').textContent = 'Sequence: ' + j.seq + ' (' + j.expected + ')';
+    const arr = j.seq.split(/\s+/).filter(Boolean);
+    await apiReset(); updateStatus(await apiReset());
+    stepPointer = 0;
+    for (const s of arr) {
+      await new Promise(r=>setTimeout(r, 520));
+      const res = await apiStep(s);
+      updateStatus(res);
+    }
+    alert('Done. Expected: ' + j.expected + '. Final: ' + (lastTrace[lastTrace.length-1] || ''));
+  });
+
+  btnReset.addEventListener('click', async () => {
+    const j = await apiReset();
+    stepPointer = 0; updateStatus(j);
+    // remove dynamic error edges
+    Array.from(svg.querySelectorAll('path[id^="dyn-"], path[id^="err-"], path[id^="dyn-"]')).forEach(x => x.remove());
+    while (labelGroup.firstChild) labelGroup.removeChild(labelGroup.firstChild);
+    rebuildAll();
+  });
+
+  // initial reset on load (sync)
+  apiReset().then(j => updateStatus(j));
+});
+</script>
+</body>
+</html>
