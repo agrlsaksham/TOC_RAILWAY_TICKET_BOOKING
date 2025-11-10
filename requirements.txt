@@ -1,0 +1,3 @@
+Flask==3.0.3
+# any other packages your app imports, e.g.
+# vercel-wsgi==0.3.0   # NOT required with current Vercel Python runtime; only if you need wsgi adapter
